@@ -120,6 +120,8 @@ static void prvStartEnabledDemos( void );
     extern BaseType_t xQualificationStart( void );
 #endif /* CONFIG_GRI_RUN_QUALIFICATION_TEST */
 
+volatile uint32_t mqttTaskAlive = 0UL;
+
 /* Static function definitions ************************************************/
 
 static BaseType_t prvInitializeNetworkContext( void )
@@ -353,4 +355,49 @@ void app_main( void )
     /* Start WiFi. */
     app_wifi_init();
     app_wifi_start( POP_TYPE_MAC );
+
+    uint32_t loopCount;
+    for(loopCount = 0UL; loopCount < 3; loopCount++)
+    {
+        while( mqttTaskAlive == 0UL )
+        {
+            ESP_LOGW( TAG, "Main Task waiting for mqtt task to start" );
+            vTaskDelay(500);
+        }
+        
+        while( mqttTaskAlive == 1UL )
+        {
+            ESP_LOGW( TAG, "Main Task waiting for mqtt task to die" );
+            vTaskDelay(500);
+        }
+#if 0
+        while( mqttTaskAlive == 2UL )
+        {
+            ESP_LOGW( TAG, "Main Task waiting for mqtt-agent task to die" );
+            vTaskDelay(500);
+        }
+#endif
+
+        if( mqttTaskAlive == 3UL )
+        {
+            ESP_LOGW( TAG, "Main task believes mqtt agent and mqtt task are dead, delaying before starting" );
+        }
+        
+        vTaskDelay(1000);
+
+        mqttTaskAlive = 0UL;
+        ESP_LOGI( TAG, "Main task Calling tls disconnect" );
+        xTlsDisconnect(&xNetworkContext);
+
+        ESP_LOGI( TAG, "Main task memsetting network context to 0" );
+        memset(&xNetworkContext, 0x0, sizeof(NetworkContext_t));
+        
+        ESP_LOGI( TAG, "Main task delaying before re-creating network context" );
+        vTaskDelay(50);
+        ESP_LOGI( TAG, "Main task re-creating network context" );
+        xRet = prvInitializeNetworkContext();
+        ESP_LOGI( TAG, "Main task re-creating demo tasks" );
+        prvStartEnabledDemos();
+    }
+
 }

@@ -264,6 +264,8 @@ static void prvUnsubscribeToTopic( MQTTQoS_t xQoS,
  */
 static void prvSubscribePublishUnsubscribeTask( void * pvParameters );
 
+extern volatile uint32_t mqttTaskAlive;
+
 /* Static function definitions ************************************************/
 
 static void prvCoreMqttAgentEventHandler( void * pvHandlerArg,
@@ -774,6 +776,7 @@ static void prvUnsubscribeToTopic( MQTTQoS_t xQoS,
 
 static void prvSubscribePublishUnsubscribeTask( void * pvParameters )
 {
+    mqttTaskAlive = 1UL;
     struct DemoParams * pxParams = ( struct DemoParams * ) pvParameters;
     uint32_t ulNotifiedValue;
     uint32_t ulTaskNumber = pxParams->ulTaskNumber;
@@ -795,8 +798,13 @@ static void prvSubscribePublishUnsubscribeTask( void * pvParameters )
               "/filter/%s",
               pcTaskGetName( xIncomingPublishCallbackContext.xTaskToNotify ) );
 
-    while( 1 )
+    uint32_t demoLoopCount;
+    for(demoLoopCount = 0UL; demoLoopCount < 4UL; demoLoopCount++)
     {
+        ESP_LOGI( TAG,
+            "Task \"%s\" sending a subscribe message.",
+            pcTaskGetName( xIncomingPublishCallbackContext.xTaskToNotify ) );
+
         /* Subscribe to the same topic to which this task will publish.  That will
          * result in each published message being published from the server back to
          * the target. */
@@ -829,6 +837,11 @@ static void prvSubscribePublishUnsubscribeTask( void * pvParameters )
         vTaskDelay( pdMS_TO_TICKS( subpubunsubconfigDELAY_BETWEEN_SUB_PUB_UNSUB_LOOPS_MS ) );
     }
 
+    ESP_LOGE( TAG,
+                "Task \"%s\" deleting itself",
+                pcTaskGetName( xIncomingPublishCallbackContext.xTaskToNotify ) );
+
+    mqttTaskAlive = 2UL;
     vTaskDelete( NULL );
 }
 
@@ -864,7 +877,7 @@ void vStartSubscribePublishUnsubscribeDemo( void )
                   ( int ) ulTaskNumber );
 
         pxParams[ ulTaskNumber ].ulTaskNumber = ulTaskNumber;
-
+        ESP_LOGE( TAG, "Creating pubsub demo task" );
         xTaskCreate( prvSubscribePublishUnsubscribeTask,
                      pcTaskNameBuf,
                      subpubunsubconfigTASK_STACK_SIZE,

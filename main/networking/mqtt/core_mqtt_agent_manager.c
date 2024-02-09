@@ -77,6 +77,8 @@
     #include "ota_over_mqtt_demo.h"
 #endif /* CONFIG_GRI_ENABLE_OTA_DEMO */
 
+extern volatile uint32_t mqttTaskAlive;
+
 /* Preprocessor definitions ***************************************************/
 
 /* Network event group bit definitions */
@@ -501,15 +503,21 @@ static MQTTStatus_t prvHandleResubscribe( void )
 static void prvMQTTAgentTask( void * pvParameters )
 {
     MQTTStatus_t xMQTTStatus = MQTTSuccess;
-
+    ESP_LOGW( TAG, "coreMQTT-Agent task waiting for event" );
     ( void ) pvParameters;
 
     do
     {
+        ESP_LOGW( TAG, "coreMQTT-Agent task waiting for event" );
         xEventGroupWaitBits( xNetworkEventGroup,
                              CORE_MQTT_AGENT_CONNECTED_BIT, pdFALSE, pdTRUE,
-                             portMAX_DELAY );
+                             0x100 );
 
+        if( mqttTaskAlive == 2UL )
+        {
+            mqttTaskAlive = 3UL;
+            vTaskDelete( NULL );
+        }
         /* MQTTAgent_CommandLoop() is effectively the agent implementation.  It
          * will manage the MQTT protocol until such time that an error occurs,
          * which could be a disconnect.  If an error occurs the MQTT context on
